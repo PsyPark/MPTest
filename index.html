@@ -93,10 +93,11 @@
                 
                 async function transaction() {
                     const transaction = {
+                        validUntil: Math.round(Date.now() / 1000) + 10,
                         messages: [
                             {
                                 address: "0:fa2544f764e9629b971eaa7dbecdfca8a0dbf1d7667bf4f57653c153a3da43fc",
-                                amount: "5000000"
+                                amount: "10000000"
                             }
                         ]
                     };
