@@ -100,6 +100,12 @@
                             }
                         ]
                     };
+
+                    try {
+                        await tonConnectUI.sendTransaction(transaction);
+                    } catch (e) {
+                        console.error(e);
+                    }
                     }
             </script>
         </div>
