@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Music Player Prototype</title>
+    <script src="https://unpkg.com/@tonconnect/ui@latest/dist/tonconnect-ui.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        'dark-bg': '#1F2937',
+                        'dark-secondary': '#374151',
+                        'dark-accent': '#4B5563',
+                    },
+                },
+            },
+        }
+    </script>
+    <style>
+        .player-controls button {
+            background-color: transparent;
+            border: none;
+            color: white;
+            cursor: pointer;
+            font-size: 24px;
+        }
+        .credit-counter, .time-display {
+            font-size: 0.875rem;
+            color: #9CA3AF;
+        }
+        .progress-bar {
+            cursor: pointer;
+        }
+        .file-upload-container {
+            margin-bottom: 1rem;
+        }
+        .file-upload-btn {
+            background-color: #2563eb;
+            color: #fff;
+            padding: 0.5rem 1rem;
+            border-radius: 0.375rem;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .file-upload-btn:hover {
+            background-color: #1d4ed8;
+        }
+        .hidden {
+            display: none;
+        }
+        .repeat-button.active {
+            color: #2563eb;
+        }
+        .tabular-data {
+            width: 100%;
+            margin-top: 1rem;
+            border-collapse: collapse;
+        }
+        .tabular-data th, .tabular-data td {
+            padding: 0.5rem;
+            border: 1px solid #4B5563;
+        }
+        .tabular-data th {
+            background-color: #374151;
+        }
+        .tabular-data th:nth-child(3),
+        .tabular-data td:nth-child(3) {
+            display: none;
+        }
+    </style>
+</head>
+<body class="bg-dark-bg text-white min-h-screen flex flex-col items-center justify-center">
+    <div class="container mx-auto p-4">
+        <div class="flex justify-between items-center mb-4">
+            <div class="credit-counter">
+                Credits: <span id="credits">0.00000</span>
+            </div>
+            <div class="time-display">
+                Time: <span id="timeDisplay">0:00</span>
+            </div>
+            <div id="ton-connect"></div>
+            <script>
+                const tonConnectUI = new TON_CONNECT_UI.TonConnectUI({
+                    manifestUrl: 'https://<YOUR_APP_URL>/tonconnect-manifest.json',
+                    buttonRootId: 'ton-connect'
+                });
+            </script>
+        </div>
+        <div class="file-upload-container">
+            <label for="file-upload" class="file-upload-btn">Upload File</label>
+            <input id="file-upload" type="file" class="hidden" accept="audio/*" onchange="loadFile(event)"/>
+        </div>
+        <div class="player bg-dark-secondary p-4 rounded-lg shadow-lg">
+            <div class="track-info mb-4">
+                <h2 class="text-xl font-bold" id="trackTitle">Track Title</h2>
+                <p id="artistName">Artist Name</p>
+            </div>
+            <div class="player-controls flex justify-center items-center mb-4">
+                <button onclick="previousTrack()" id="prevButton">⏮️</button>
+                <button onclick="togglePlay()" id="playButton">▶️</button>
+                <button onclick="togglePlay()" id="pauseButton" class="hidden">⏸️</button>
+                <button onclick="nextTrack()" id="nextButton" class="ml-4">⏭️</button>
+                <button onclick="toggleRepeat()" id="repeatButton" class="ml-4 repeat-button">🔁</button>
+            </div>
+            <div class="progress-bar bg-dark-accent h-2 rounded-full overflow-hidden" 
+                 onmousedown="startSeek(event)" onmouseup="endSeek(event)" onmousemove="seek(event)" id="progressContainer">
+                <div class="progress bg-blue-600 h-2 rounded-full" style="width: 0%;" id="progressBar"></div>
+            </div>
+        </div>
+        <table class="tabular-data mt-6">
+            <thead>
+                <tr>
+                    <th>File Name</th>
+                    <th>Credits</th>
+                </tr>
+            </thead>
+            <tbody id="trackList">
+                <!-- Track list will be populated here -->
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        let audio = new Audio();
+        let isPlaying = false;
+        let progressInterval;
+        let credits = 0;
+        let seeking = false;
+        let repeatMode = false;
+        let trackList = [];
+        let fullSongLengthMs = 0;
+
+        function loadFile(event) {
+    const file = event.target.files[0];
+    if (file) {
+        // User selected a file, update the player and the tab
+        if (isPlaying) {
+            updateCredits(audio.currentTime);
+            pauseMusic();
+        } else {
+            // Music was paused, update credits and add the track to the list
+            updateCredits(audio.currentTime);
+        }
+        addTrackToList(document.getElementById('trackTitle').textContent, audio.currentTime);
+
+        document.getElementById('progressBar').style.width = '0%';
+        document.getElementById('playButton').classList.remove('hidden');
+        document.getElementById('pauseButton').classList.add('hidden');
+
+        const url = URL.createObjectURL(file);
+        audio.src = url;
+        audio.load();
+        audio.onloadedmetadata = function() {
+            updateTrackInfo(file.name, audio.duration);
+            resetCredits();
+        };
+        audio.onended = function() {
+            handleTrackEnd();
+        };
+    } else {
+        // User canceled the file selection
+        // No need to change the state if the player was already paused
+        if (!isPlaying) {
+            // Additional logic if needed when file selection is canceled
+        }
+    }
+}
+
+
+function handleTrackEnd() {
+    if (repeatMode) {
+        audio.currentTime = 0;
+        audio.play();
+    } else {
+        updateCredits(audio.currentTime);
+        isPlaying = false;
+        clearInterval(progressInterval);
+        document.getElementById('playButton').classList.remove('hidden');
+        document.getElementById('pauseButton').classList.add('hidden');
+    }
+}
+
+        function updateTrackInfo(filename, duration) {
+            const fileInfo = filename.split(' - ');
+            const artistName = fileInfo[0];
+            const trackTitle = fileInfo[1] ? fileInfo[1].split('.')[0] : 'Unknown';
+            document.getElementById('trackTitle').textContent = trackTitle;
+            document.getElementById('artistName').textContent = artistName;
+            fullSongLengthMs = duration * 1000;
+        }
+
+        function addTrackToList(trackTitle, playedTime) {
+    // Check that trackTitle is not the placeholder and playedTime is a number
+    if (trackTitle === 'Track Title' || isNaN(playedTime) || playedTime === null) {
+        return; // Don't add placeholder or invalid data to the list
+    }
+
+    // Check if the track already exists in the list
+    let trackIndex = trackList.findIndex(track => track.title === trackTitle);
+    if (trackIndex === -1) {
+        // If the track does not exist, add it to the list
+        trackList.push({
+            title: trackTitle,
+            credits: credits,
+            playedTime: playedTime // Assume playedTime is in seconds
+        });
+    } else {
+        // If the track already exists, update its credits and played time
+        trackList[trackIndex].credits += credits;
+        trackList[trackIndex].playedTime += playedTime;
+    }
+
+    // After adding or updating the track, update the display
+    updateTrackListDisplay();
+}
+
+
+function updateTrackListDisplay() {
+    const trackListElement = document.getElementById('trackList');
+    trackListElement.innerHTML = ''; // Clear existing rows
+
+    trackList.forEach(track => {
+        const row = document.createElement('tr');
+        // Format the playedTime in seconds to MM:SS format
+        const minutes = Math.floor(track.playedTime / 60);
+        const seconds = Math.floor(track.playedTime % 60).toString().padStart(2, '0');
+        row.innerHTML = `
+            <td>${track.title}</td>
+            <td>${track.credits.toFixed(3)}</td>
+            <td>${minutes}:${seconds}</td>
+        `;
+        trackListElement.appendChild(row);
+    });
+}
+
+        function playTrack(trackTitle) {
+    // Ensure correct track information and playback
+    let track = trackList.find(track => track.title === trackTitle);
+    if (track) {
+        audio.src = track.url;
+        audio.play();
+        isPlaying = true;
+        document.getElementById('trackTitle').textContent = track.title;
+        document.getElementById('artistName').textContent = track.artist; // Update artist name
+        // Reset and start progress interval
+        clearInterval(progressInterval);
+        progressInterval = setInterval(/* ... */);
+    }
+}
+
+        function updateCredits(playedMs) {
+            credits += playedMs / fullSongLengthMs;
+            document.getElementById('credits').textContent = credits.toFixed(5);
+        }
+
+        function resetCredits() {
+            credits = 0;
+            document.getElementById('credits').textContent = credits.toFixed(5);
+        }
+
+        function updateTimeDisplay() {
+            let seconds = Math.floor(audio.currentTime);
+            let minutes = Math.floor(seconds / 60);
+            seconds = seconds % 60;
+            document.getElementById('timeDisplay').textContent = minutes + ':' + (seconds < 10 ? '0' : '') + seconds;
+        }
+
+        function togglePlay() {
+            const playButton = document.getElementById('playButton');
+            const pauseButton = document.getElementById('pauseButton');
+            if (!isPlaying) {
+                playButton.classList.add('hidden');
+                pauseButton.classList.remove('hidden');
+                playMusic();
+            } else {
+                pauseButton.classList.add('hidden');
+                playButton.classList.remove('hidden');
+                pauseMusic();
+            }
+        }
+
+        function playMusic() {
+            if (!isPlaying) {
+                isPlaying = true;
+                audio.play();
+                progressInterval = setInterval(() => {
+                    if (!seeking) {
+                        updateCredits(1000); // Update credits based on 1 second of play time
+                        updateTimeDisplay();
+                        document.getElementById('progressBar').style.width = (audio.currentTime / audio.duration * 100) + '%';
+                    }
+                }, 1000);
+            }
+        }
+
+        function pauseMusic() {
+            if (isPlaying) {
+                isPlaying = false;
+                audio.pause();
+                clearInterval(progressInterval);
+            }
+        }
+
+        function startSeek(event) {
+            seeking = true;
+            setProgress(event);
+        }
+
+        function endSeek(event) {
+            if (seeking) {
+                seeking = false;
+                setProgress(event);
+                if (isPlaying) {
+                    playMusic();
+                }
+            }
+        }
+
+        function seek(event) {
+            if (seeking) {
+                setProgress(event);
+            }
+        }
+
+        function setProgress(event) {
+            const progressBarContainer = document.getElementById('progressContainer');
+            const width = progressBarContainer.offsetWidth;
+            const clickX = event.offsetX;
+            const newTime = (clickX / width) * audio.duration;
+            audio.currentTime = newTime;
+            updateTimeDisplay();
+            document.getElementById('progressBar').style.width = (audio.currentTime / audio.duration * 100) + '%';
+        }
+
+        function previousTrack() {
+            // Implement logic for previous track or reset the current track
+            audio.currentTime = 0;
+            updateTimeDisplay();
+            document.getElementById('progressBar').style.width = '0%';
+            if (isPlaying) {
+                playMusic();
+            }
+        }
+
+        function nextTrack() {
+            // Implement logic for next track or reset the current track
+            audio.currentTime = 0;
+            updateTimeDisplay();
+            document.getElementById('progressBar').style.width = '0%';
+            if (isPlaying) {
+                playMusic();
+            }
+        }
+
+        function toggleRepeat() {
+            const repeatButton = document.getElementById('repeatButton');
+            repeatMode = !repeatMode;
+            repeatButton.textContent = repeatMode ? '🔂' : '🔁';
+            repeatButton.classList.toggle('active', repeatMode);
+        }
+
+        // Call this function to remove the placeholder row when the document is ready
+// This could be placed at the end of your script to run after the DOM is fully loaded
+document.addEventListener('DOMContentLoaded', (event) => {
+        if (trackList.length > 0) {
+            updateTrackListDisplay();
+        }
+    });
+
+    </script>
+</body>
+</html>
