@@ -83,11 +83,31 @@
                 Time: <span id="timeDisplay">0:00</span>
             </div>
             <div id="ton-connect"></div>
+            <button onclick="transaction()">Payment</button>
             <script>
                 const tonConnectUI = new TON_CONNECT_UI.TonConnectUI({
                     manifestUrl: 'https://psypark.github.io/MPTest/tonconnect-manifest.json',
                     buttonRootId: 'ton-connect'
                 });
+
+                
+                async function transaction() {
+                    const transaction = {
+                        validUntil: Math.round(Date.now() / 1000) + 10,
+                        messages: [
+                            {
+                                address: "0:fa2544f764e9629b971eaa7dbecdfca8a0dbf1d7667bf4f57653c153a3da43fc",
+                                amount: "10000000"
+                            }
+                        ]
+                    };
+
+                    try {
+                        await tonConnectUI.sendTransaction(transaction);
+                    } catch (e) {
+                        console.error(e);
+                    }
+                    }
             </script>
         </div>
         <div class="file-upload-container">
