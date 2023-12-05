@@ -106,6 +106,8 @@ async function transaction() {
         ]
     };
 
+        console.log("Transaction Amount:", amount); // Log the amount value
+
     try {
         await tonConnectUI.sendTransaction(transaction);
     } catch (e) {
