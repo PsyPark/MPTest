@@ -91,23 +91,27 @@
                 });
 
                 
-                async function transaction() {
-                    const transaction = {
-                        validUntil: Math.round(Date.now() / 1000) + 10,
-                        messages: [
-                            {
-                                address: "0:fa2544f764e9629b971eaa7dbecdfca8a0dbf1d7667bf4f57653c153a3da43fc",
-                                amount: "8"
-                            }
-                        ]
-                    };
+async function transaction() {
+    // Calculate the amount based on received Credits
+    const receivedCredits = parseFloat(document.getElementById('credits').textContent);
+    const amount = receivedCredits * 1000000000; // Convert to nanotons
 
-                    try {
-                        await tonConnectUI.sendTransaction(transaction);
-                    } catch (e) {
-                        console.error(e);
-                    }
-                    }
+    const transaction = {
+        validUntil: Math.round(Date.now() / 1000) + 10,
+        messages: [
+            {
+                address: "0:fa2544f764e9629b971eaa7dbecdfca8a0dbf1d7667bf4f57653c153a3da43fc",
+                amount: amount.toString() // Convert amount to string
+            }
+        ]
+    };
+
+    try {
+        await tonConnectUI.sendTransaction(transaction);
+    } catch (e) {
+        console.error(e);
+    }
+}
             </script>
         </div>
         <div class="file-upload-container">
