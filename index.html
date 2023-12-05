@@ -46,6 +46,14 @@
             cursor: pointer;
             transition: background-color 0.2s;
         }
+        .payment-button {
+            background-color: green;
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 0.375rem;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
         .file-upload-btn:hover {
             background-color: #1d4ed8;
         }
@@ -83,37 +91,39 @@
                 Time: <span id="timeDisplay">0:00</span>
             </div>
             <div id="ton-connect"></div>
-            <button onclick="transaction()">Payment</button>
+            <button onclick="transaction()" class="payment-button">Payment</button>
             <script>
                 const tonConnectUI = new TON_CONNECT_UI.TonConnectUI({
                     manifestUrl: 'https://psypark.github.io/MPTest/tonconnect-manifest.json',
                     buttonRootId: 'ton-connect'
                 });
 
-                
-async function transaction() {
-    // Calculate the amount based on received Credits
-    const receivedCredits = parseFloat(document.getElementById('credits').textContent);
-    const amount = receivedCredits * 1000000000; // Convert to nanotons
+                async function transaction() {
+    // Find the last row in the table and get its nanotons value
+    const trackListTable = document.getElementById('trackList');
+    const lastRow = trackListTable.rows[trackListTable.rows.length - 1];
+    const nanotonsCell = lastRow.cells[3]; // Assuming nanotons is in the 4th column
+    const nanotons = nanotonsCell.textContent;
 
     const transaction = {
         validUntil: Math.round(Date.now() / 1000) + 10,
         messages: [
             {
                 address: "0:fa2544f764e9629b971eaa7dbecdfca8a0dbf1d7667bf4f57653c153a3da43fc",
-                amount: amount.toString() // Convert amount to string
+                amount: nanotons // Use the nanotons as the transaction amount
             }
         ]
     };
 
-        console.log("Transaction Amount:", amount); // Log the amount value
+    console.log("Transaction Amount:", nanotons); // Log the amount value
 
     try {
         await tonConnectUI.sendTransaction(transaction);
     } catch (e) {
-        console.error(e);
+        console.error("Transaction failed with error:", e);
     }
 }
+
             </script>
         </div>
         <div class="file-upload-container">
@@ -142,6 +152,8 @@ async function transaction() {
                 <tr>
                     <th>File Name</th>
                     <th>Credits</th>
+                    <th>Played Time</th>
+                    <th>Nanotons</th> <!-- Add a new column header for Nanotons -->
                 </tr>
             </thead>
             <tbody id="trackList">
@@ -161,17 +173,21 @@ async function transaction() {
         let fullSongLengthMs = 0;
 
         function loadFile(event) {
-    const file = event.target.files[0];
-    if (file) {
-        // User selected a file, update the player and the tab
-        if (isPlaying) {
-            updateCredits(audio.currentTime);
-            pauseMusic();
-        } else {
-            // Music was paused, update credits and add the track to the list
-            updateCredits(audio.currentTime);
-        }
-        addTrackToList(document.getElementById('trackTitle').textContent, audio.currentTime);
+                const file = event.target.files[0];
+                if (file) {
+                    // User selected a file, update the player and the tab
+                    if (isPlaying) {
+                        updateCredits(audio.currentTime);
+                        pauseMusic();
+                    } else {
+                        // Music was paused, update credits and add the track to the list
+                        updateCredits(audio.currentTime);
+                    }
+
+                    // Calculate nanotons (received Credits * 1,000,000,000)
+                    const nanotons = credits * 1000000000;
+
+                    addTrackToList(document.getElementById('trackTitle').textContent, audio.currentTime, nanotons);
 
         document.getElementById('progressBar').style.width = '0%';
         document.getElementById('playButton').classList.remove('hidden');
@@ -219,7 +235,7 @@ function handleTrackEnd() {
             fullSongLengthMs = duration * 1000;
         }
 
-        function addTrackToList(trackTitle, playedTime) {
+        function addTrackToList(trackTitle, playedTime, nanotons) {
     // Check that trackTitle is not the placeholder and playedTime is a number
     if (trackTitle === 'Track Title' || isNaN(playedTime) || playedTime === null) {
         return; // Don't add placeholder or invalid data to the list
@@ -232,18 +248,19 @@ function handleTrackEnd() {
         trackList.push({
             title: trackTitle,
             credits: credits,
-            playedTime: playedTime // Assume playedTime is in seconds
+            playedTime: playedTime, // Assume playedTime is in seconds
+            nanotons: nanotons // Add nanotons property
         });
     } else {
-        // If the track already exists, update its credits and played time
+        // If the track already exists, update its credits, played time, and nanotons
         trackList[trackIndex].credits += credits;
         trackList[trackIndex].playedTime += playedTime;
+        trackList[trackIndex].nanotons = nanotons;
     }
 
     // After adding or updating the track, update the display
     updateTrackListDisplay();
 }
-
 
 function updateTrackListDisplay() {
     const trackListElement = document.getElementById('trackList');
@@ -254,15 +271,19 @@ function updateTrackListDisplay() {
         // Format the playedTime in seconds to MM:SS format
         const minutes = Math.floor(track.playedTime / 60);
         const seconds = Math.floor(track.playedTime % 60).toString().padStart(2, '0');
+
+        // Calculate nanotons (received Credits * 1,000,000,000)
+        const nanotons = track.credits * 1000000000;
+
         row.innerHTML = `
             <td>${track.title}</td>
             <td>${track.credits.toFixed(3)}</td>
             <td>${minutes}:${seconds}</td>
+            <td>${nanotons.toFixed(0)}</td> <!-- Display nanotons in the new column -->
         `;
         trackListElement.appendChild(row);
     });
 }
-
         function playTrack(trackTitle) {
     // Ensure correct track information and playback
     let track = trackList.find(track => track.title === trackTitle);
